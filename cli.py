@@ -80,22 +80,34 @@ def main(argv=None):
         return 0
 
     if args.command == "batch":
-        with open(args.input, mode="r", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            fieldnames = list(reader.fieldnames or [])
-            rows = list(reader)
+        from oasis_score import _validate_csv_path
+        input_path = _validate_csv_path(args.input, must_exist=True)
+        output_path = _validate_csv_path(args.output, must_exist=False)
+
+        try:
+            with open(input_path, mode="r", encoding="utf-8-sig") as f:
+                reader = csv.DictReader(f)
+                fieldnames = list(reader.fieldnames or [])
+                rows = list(reader)
+        except (csv.Error, UnicodeDecodeError) as e:
+            print(f"Error: Failed to parse input CSV: {e}", file=sys.stderr)
+            return 1
 
         out_fields = fieldnames + ["overall_urgency", "integrity_status", "total_alerts", "audit_hash"]
         out_rows = []
         for r in rows:
-            payload = SystemTaskPayload(
-                task_id=r.get("task_id", "TASK-01"),
-                target_identifier=r.get("target_identifier", "TARGET-01"),
-                primary_metric=float(r.get("primary_metric", 15.0)),
-                secondary_metric=float(r.get("secondary_metric", 5.0)),
-                status_descriptor=r.get("status_descriptor", "NOMINAL"),
-                is_critical_flag=bool(r.get("is_critical_flag", False)),
-            )
+            try:
+                payload = SystemTaskPayload(
+                    task_id=r.get("task_id", "TASK-01"),
+                    target_identifier=r.get("target_identifier", "TARGET-01"),
+                    primary_metric=float(r.get("primary_metric", 15.0)),
+                    secondary_metric=float(r.get("secondary_metric", 5.0)),
+                    status_descriptor=r.get("status_descriptor", "NOMINAL"),
+                    is_critical_flag=str(r.get("is_critical_flag", "")).lower() in ("true", "1", "yes"),
+                )
+            except (ValueError, TypeError) as e:
+                print(f"Error: Invalid row data for task_id={r.get('task_id', '?')}: {e}", file=sys.stderr)
+                return 1
             dossier = supervisor.process_task(payload)
             row_dict = dict(r)
             row_dict["overall_urgency"] = dossier.overall_urgency.value
@@ -104,10 +116,14 @@ def main(argv=None):
             row_dict["audit_hash"] = dossier.audit_hash
             out_rows.append(row_dict)
 
-        with open(args.output, mode="w", encoding="utf-8", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=out_fields)
-            writer.writeheader()
-            writer.writerows(out_rows)
+        try:
+            with open(output_path, mode="w", encoding="utf-8", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=out_fields)
+                writer.writeheader()
+                writer.writerows(out_rows)
+        except OSError as e:
+            print(f"Error: Failed to write output CSV: {e}", file=sys.stderr)
+            return 1
         print(f"Processed {len(out_rows)} records -> {args.output}")
         return 0
 

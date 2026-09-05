@@ -1,7 +1,6 @@
-# Oasis Icu Severity Score
+# OASIS ICU Severity Score
 
-> **Domain:** Clinical Decision Support & Biomedical Computing  
-> **Reference Guidelines & Standards:** `Standard Clinical Formulations & ISO/IEC Quality Frameworks`
+> **Domain:** Clinical Decision Support & Biomedical Computing
 
 <div align="center">
 
@@ -16,101 +15,193 @@
 
 ---
 
-## 📖 What It Does
+## Overview
 
-Oxford Acute Severity of Illness Score (OASIS)
-Non-laboratory severity-of-illness score for ICU admissions using vital signs and pre-ICU stay.
+Oxford Acute Severity of Illness Score (OASIS) - Non-laboratory severity-of-illness score for ICU admissions using vital signs and pre-ICU stay.
 
 Zero-dependency Python implementation with single and batch evaluation.
+
 Author: Dr. Abu Suraih Sakhri
 License: MIT
 
 ---
 
-## ⚙️ Key Capabilities & Algorithmic Modules
+## Key Features
 
-### 🔬 Analytical Functions
-
-- **`calculate_metrics()`**: Core domain algorithm for oasis-icu-severity-score.
-- **`process_single()`** — calculates and validates process_single parameters.
-- **`process_batch()`** — calculates and validates process_batch parameters.
-- **`main()`** — calculates and validates main parameters.
-
----
-
-## 📐 Mathematical Formulation & Logic
-
-```text
-  score = primary_val
-  rounded_score = round(score, 2)
-  res = calculate_metrics(**kwargs)
-  calc_res = calculate_metrics(**r)
-```
+- **Single Case Evaluation**: Calculate OASIS score for individual patients
+- **Batch Processing**: Process CSV files with multiple patient records
+- **PHI Protection**: Outbound guard preventing protected health information leakage
+- **HMAC-SHA256 Audit Trail**: Tamper-evident cryptographic logging
+- **FastAPI REST API**: OpenAPI 3.1 compliant REST endpoints
+- **Prometheus Metrics**: Operational telemetry export
+- **Multi-Worker Assessment**: Consensus-based evaluation with specialized workers
 
 ---
 
-## 💻 CLI Quickstart & Usage
+## Installation
 
-### 1. Guided Interactive Mode
+### Local Development
+
 ```bash
-python cli.py
+# Clone the repository
+git clone https://github.com/abusuraihsakhri/oasis-icu-severity-score.git
+cd oasis-icu-severity-score
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set required environment variable
+export AUDIT_SECRET_KEY="your-secure-audit-key-min-16-chars"
 ```
 
-### 2. Direct Parameterized Evaluation
+### Docker Deployment
+
 ```bash
-python cli.py --task-id <value> --target <value> --primary <value> --secondary <value>
+# Set your audit key
+export AUDIT_SECRET_KEY="your-secure-production-audit-key"
+
+# Build and run
+docker-compose up --build
 ```
 
-### Parameter Reference
-- `--task-id`: Specifies input measurement or parameter value.
-- `--target`: Specifies input measurement or parameter value.
-- `--primary`: Specifies input measurement or parameter value.
-- `--secondary`: Specifies input measurement or parameter value.
-- `--critical`: Specifies input measurement or parameter value.
-- `--status`: Specifies input measurement or parameter value.
-- `--input`: Specifies input measurement or parameter value.
-- `--output`: Specifies input measurement or parameter value.
+---
 
-### Input Data Schema
+## Usage
+
+### Single Case Evaluation
+
+```bash
+# With explicit parameters
+python oasis_score.py single --v1 14.5 --v2 4.2 --v3 1.8
+
+# Interactive defaults
+python oasis_score.py single
+```
+
+### Batch CSV Processing
+
+```bash
+python oasis_score.py batch -i sample.csv -o results.csv
+```
+
+### Agent Supervisor CLI
+
+```bash
+# Run single audit task
+python cli.py audit --task-id TASK-001 --primary 28.5 --secondary 14.2
+
+# Batch processing
+python cli.py batch -i input.csv -o output.csv
+
+# Verify audit trail integrity
+python cli.py verify-audit
+
+# Start REST API server
+python cli.py serve --host 127.0.0.1 --port 8000
+```
+
+### REST API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check and service metadata |
+| `/metrics` | GET | Prometheus operational metrics |
+| `/api/audit` | POST | Submit task for multi-worker evaluation |
+| `/api/chat` | POST | Supervisory conversational assistant |
+| `/api/audit/logs` | GET | Retrieve and verify HMAC audit trail |
+
+---
+
+## Input Data Schema
+
+### CSV Format for Batch Processing
 
 | Field | Description | Requirement |
 |:------|:------------|:------------|
-| `Patient_ID` | Parameter / observation metric | Required |
-| `v1` | Parameter / observation metric | Required |
-| `v2` | Parameter / observation metric | Required |
-| `v3` | Parameter / observation metric | Required |
+| `Patient_ID` | Patient identifier | Required |
+| `v1` | Primary parameter (e.g., heart rate) | Required |
+| `v2` | Secondary parameter (e.g., blood pressure) | Required |
+| `v3` | Tertiary parameter (e.g., temperature) | Required |
+
+See `sample.csv` for example data.
 
 ---
 
-## 🛡️ Security & Enterprise Architecture
+## Security
 
-* **Zero-PHI Outbound Interceptor:** Active AST and regex inspection blocking SSNs, MRNs, phone numbers, and patient identifiers.
-* **Tamper-Evident HMAC-SHA256 Audit Trail:** Chained, cryptographically signed logs for every evaluation and state transition.
-* **Air-Gapped LLM Reasoning Adapter:** Agnostic integration for local Ollama instances (`llama3`, `mistral`), Claude 3.5 Sonnet, GPT-4o, and deterministic test mocks.
-* **Active Learning Bayesian Calibration:** Dynamic tracker updating worker reliability weights and monitoring Brier calibration drift.
-* **FastAPI & Prometheus Telemetry:** Exposes OpenAPI 3.1 REST endpoints and operational Prometheus metrics (`/metrics`).
+### Required Configuration
 
----
-
-## 🧪 Testing & Verification
-
-Run the automated test suite:
+The `AUDIT_SECRET_KEY` environment variable **must** be set. Generate a secure key:
 
 ```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+### Security Features
+
+- **Zero-PHI Outbound Guard**: AST and regex inspection blocking SSNs, MRNs, phone numbers, and patient identifiers
+- **HMAC-SHA256 Audit Trail**: Cryptographically chained, tamper-evident logs
+- **Path Traversal Protection**: Validated CSV input/output paths
+- **Input Sanitization**: Type validation and bounds checking on all inputs
+
+---
+
+## Testing
+
+```bash
+# Set test environment variable
+export AUDIT_SECRET_KEY="test-secret-key-for-testing-1234567890"
+
+# Run full test suite
 pytest -v
-```
 
-Execute high-throughput batch simulation benchmarks:
+# Run specific test modules
+pytest tests/test_security_and_validation.py -v
+pytest tests/test_enrichment.py -v
+pytest tests/test_oasis_icu_severity_score.py -v
 
-```bash
-python simulator.py --tasks 1000 --concurrency 8
+# Run simulation benchmark
+python simulator.py --tasks 1000
 ```
 
 ---
 
-## 🐳 Container Deployment
+## Project Structure
 
-```bash
-docker build -t oasis-icu-severity-score .
-docker run -p 8000:8000 oasis-icu-severity-score
 ```
+oasis-icu-severity-score/
+├── agents/                    # Multi-agent supervisor framework
+│   ├── api.py                 # FastAPI REST endpoints
+│   ├── base.py                # Security, PHI guard, HMAC audit trail
+│   ├── learning.py            # Bayesian calibration engine
+│   ├── llm_factory.py         # LLM provider abstraction
+│   ├── metrics.py             # Prometheus metrics collector
+│   ├── models.py              # Pydantic data models
+│   ├── streamer.py            # WebSocket telemetry broadcaster
+│   ├── supervisor.py          # Master orchestrator
+│   └── workers.py             # Specialized domain workers
+├── tests/                     # Test suite
+│   ├── test_enrichment.py     # Enrichment engine tests
+│   ├── test_oasis_icu_severity_score.py  # Core functionality tests
+│   └── test_security_and_validation.py   # Security & validation tests
+├── web/                       # Static web assets
+├── cli.py                     # Command-line interface
+├── oasis_score.py             # Core OASIS calculation
+├── enrichment.py              # Enrichment feature engines
+├── simulator.py               # High-throughput simulation
+├── openapi_spec.json          # OpenAPI 3.1 specification
+├── requirements.txt           # Python dependencies
+├── Dockerfile                 # Container build
+├── docker-compose.yml         # Container orchestration
+└── sample.csv                 # Example input data
+```
+
+---
+
+## License
+
+MIT License - See [LICENSE](LICENSE) for details.
