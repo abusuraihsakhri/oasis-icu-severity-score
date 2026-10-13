@@ -3,6 +3,9 @@ FastAPI REST API Server for Oasis Icu Severity Score.
 """
 from typing import Dict, Any, List
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import PlainTextResponse
+from .metrics import GLOBAL_METRICS
+from .base import SecurityException
 from pydantic import BaseModel
 from .base import AuditLogger, PHIGuard
 from .models import SystemTaskPayload, ConsensusDossier
@@ -12,7 +15,7 @@ supervisor = SystemSupervisor(model_provider="mock")
 
 app = FastAPI(
     title="Oasis Icu Severity Score API",
-    description="Enterprise Distributed Component Platform (Clinical & Biomedical AI)",
+    description="Demonstration supervisor endpoints; not a validated clinical decision-support system.",
     version="3.0.0-ENTERPRISE",
 )
 
@@ -26,18 +29,19 @@ def health():
     return {"status": "HEALTHY", "service": "oasis-icu-severity-score", "domain": "Clinical & Biomedical AI", "standard": "CAP / CLSI / ISO Standards", "version": "3.0.0-ENTERPRISE"}
 
 
-@app.get("/metrics")
+@app.get("/metrics", response_class=PlainTextResponse)
 def metrics():
-    return {
-        "dossiers_processed_total": len(supervisor.dossier_registry),
-        "audit_blocks_total": len(AuditLogger.get_trail()),
-        "system_status": "NOMINAL_OPTIMAL"
-    }
+    return PlainTextResponse(GLOBAL_METRICS.export_prometheus_text(),
+                             media_type="text/plain; version=0.0.4")
 
 
 @app.post("/api/audit")
 def api_audit(payload: SystemTaskPayload):
-    dossier = supervisor.process_task(payload)
+    try:
+        dossier = supervisor.process_task(payload)
+    except SecurityException as exc:
+        GLOBAL_METRICS.record_phi_block()
+        raise HTTPException(status_code=422, detail="Possible identifying data") from exc
     return dossier.to_dict()
 
 
@@ -46,8 +50,9 @@ def api_chat(req: ChatRequest):
     try:
         ans = supervisor.query_supervisory_chat(req.query)
         return {"response": ans}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except SecurityException as exc:
+        GLOBAL_METRICS.record_phi_block()
+        raise HTTPException(status_code=422, detail="Possible identifying data") from exc
 
 
 @app.get("/api/audit/logs")
