@@ -1,207 +1,73 @@
 # OASIS ICU Severity Score
 
-> **Domain:** Clinical Decision Support & Biomedical Computing
+Reference implementation of the **Oxford Acute Severity of Illness Score (OASIS)** for adult ICU research. Uses ten components derived from observations during the first 24 hours of an ICU stay. Includes a zero-build browser calculator, de-identified CSV batch processing, and Python CLI. The separate multi-worker supervisor is a **demonstration**, not a clinical OASIS inference or treatment system.
 
-<div align="center">
+## Browser application
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688.svg?logo=fastapi&logoColor=white)
-![Audit Trail](https://img.shields.io/badge/Audit-HMAC--SHA256_Tamper--Evident-brightgreen.svg)
-![Zero-PHI Guard](https://img.shields.io/badge/Guard-Zero--PHI_Outbound-blue.svg)
-![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?logo=docker&logoColor=white)
+The static site lives in [web/index.html](web/index.html) and is designed for GitHub Pages. It calculates scores and processes CSV files entirely in-browser, without transmitting records to a server. No login, cookies, or analytics are used. Do **not** enter names, MRNs, or other identifiable patient information.
 
-</div>
+**Clinical limitation:** OASIS is a prognostic score derived from ICU cohorts. It is not an intervention threshold, diagnosis, validated triage directive, or substitute for clinical judgment. The optional estimated in-hospital mortality uses the original cohort equation and **requires external/local validation and calibration**. The app does not automatically obtain measurements from clinical records.
 
----
+## Scoring inputs
 
-## Overview
+All required; extrema refer to the **first ICU day**:
 
-Oxford Acute Severity of Illness Score (OASIS) - Non-laboratory severity-of-illness score for ICU admissions using vital signs and pre-ICU stay.
+| Field | Unit / interpretation |
+|---|---|
+| age | Adult years (18–120 supported) |
+| pre_icu_los_hours | Hours from hospital admission until ICU admission |
+| gcs_min | Lowest Glasgow Coma Scale, 3–15 |
+| heart_rate_min / heart_rate_max | Beats/min |
+| map_min / map_max | Mean arterial pressure, mmHg |
+| respiratory_rate_min / respiratory_rate_max | Breaths/min |
+| temperature_min / temperature_max | Celsius |
+| urine_output_ml | Total urine output during first ICU 24 hours, mL |
+| mechanically_ventilated | Whether ventilated during first ICU day, yes/no |
+| elective_surgery | Whether admitted after elective surgery, yes/no |
 
-Zero-dependency Python implementation with single and batch evaluation.
+Missing, nonfinite, and inconsistent values are rejected rather than silently treated as normal. The clinical component point weights and precedence follow [MIT-LCP's MIMIC-IV OASIS reference SQL](https://github.com/MIT-LCP/mimic-code/blob/main/mimic-iv/concepts_postgres/score/oasis.sql), including original-cohort mortality expression \`1 / (1 + exp(-(-6.1746 + 0.1275 * score)))\`. Small differences from other published tables may reflect rounded breakpoints.
 
-Author: Dr. Abu Suraih Sakhri
-License: MIT
+## Use locally
 
----
+Open \`web/index.html\` in a modern browser; all scripts are relative and work without a build step. The sample form contains **synthetic example inputs**. For batch scoring, select a CSV matching [sample.csv](sample.csv), optionally with a non-identifying \`record_id\`. A 5 MB file-size limit applies to browser uploads.
 
-## Key Features
+Python 3.10 or newer:
 
-- **Single Case Evaluation**: Calculate OASIS score for individual patients
-- **Batch Processing**: Process CSV files with multiple patient records
-- **PHI Protection**: Outbound guard preventing protected health information leakage
-- **HMAC-SHA256 Audit Trail**: Tamper-evident cryptographic logging
-- **FastAPI REST API**: OpenAPI 3.1 compliant REST endpoints
-- **Prometheus Metrics**: Operational telemetry export
-- **Multi-Worker Assessment**: Consensus-based evaluation with specialized workers
+\`\`\`bash
+python oasis_score.py single \
+  --age 40 --pre-icu-los-hours 8 --gcs-min 15 \
+  --heart-rate-min 70 --heart-rate-max 88 \
+  --map-min 80 --map-max 90 \
+  --respiratory-rate-min 16 --respiratory-rate-max 20 \
+  --temperature-min 36.4 --temperature-max 36.8 \
+  --urine-output-ml 3000 \
+  --mechanically-ventilated no --elective-surgery yes
 
----
-
-## Installation
-
-### Local Development
-
-```bash
-# Clone the repository
-git clone https://github.com/abusuraihsakhri/oasis-icu-severity-score.git
-cd oasis-icu-severity-score
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Set required environment variable
-export AUDIT_SECRET_KEY="your-secure-audit-key-min-16-chars"
-```
-
-### Docker Deployment
-
-```bash
-# Set your audit key
-export AUDIT_SECRET_KEY="your-secure-production-audit-key"
-
-# Build and run
-docker-compose up --build
-```
-
----
-
-## Usage
-
-### Single Case Evaluation
-
-```bash
-# With explicit parameters
-python oasis_score.py single --v1 14.5 --v2 4.2 --v3 1.8
-
-# Interactive defaults
-python oasis_score.py single
-```
-
-### Batch CSV Processing
-
-```bash
 python oasis_score.py batch -i sample.csv -o results.csv
-```
+\`\`\`
 
-### Agent Supervisor CLI
+The Python scorer requires only the standard library. The distinct demo FastAPI/supervisor uses dependencies from \`requirements.txt\` and a **random** \`AUDIT_SECRET_KEY\` (e.g., \`python -c "import secrets; print(secrets.token_hex(32))"\`). It can be launched with \`python cli.py serve\` after installing dependencies or with Docker Compose; see \`.env.example\`. Demo API: \`/health\`, \`/metrics\` (Prometheus text), \`/api/audit\`, \`/api/chat\`, \`/api/audit/logs\`. **Do not expose the demo endpoints to an untrusted network without authentication, HTTPS, and additional security controls.** Logs are in-memory, not persistent.
 
-```bash
-# Run single audit task
-python cli.py audit --task-id TASK-001 --primary 28.5 --secondary 14.2
+The demo supervisor's heuristic alerts, simulated chat responses, metrics, and HMAC chain are **not** a clinical safety certification, HIPAA de-identification mechanism, or medical risk stratification.
 
-# Batch processing
-python cli.py batch -i input.csv -o output.csv
+## Tests
 
-# Verify audit trail integrity
-python cli.py verify-audit
+\`\`\`bash
+python -m pip install -r requirements.txt
+python -m pytest -q
+node --check web/oasis.js
+node --check web/app.js
+node --test web/oasis.test.cjs
+\`\`\`
 
-# Start REST API server
-python cli.py serve --host 127.0.0.1 --port 8000
-```
+CI covers Python 3.10–3.12 and Node.js 22. The static application needs no Python-in-the-browser runtime, as its small numeric algorithm is directly implemented in JavaScript and independently tested.
 
-### REST API Endpoints
+## Technology and privacy
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Health check and service metadata |
-| `/metrics` | GET | Prometheus operational metrics |
-| `/api/audit` | POST | Submit task for multi-worker evaluation |
-| `/api/chat` | POST | Supervisory conversational assistant |
-| `/api/audit/logs` | GET | Retrieve and verify HMAC audit trail |
+Python standard library; optional FastAPI/Pydantic/Uvicorn for demo endpoints; plain HTML/CSS/JavaScript browser calculator. Supports current Chromium, Firefox, and Safari with modern JavaScript and File APIs. Static/browser operations do not transmit or store values. Python CLI operates on locally provided files; users are responsible for secure file handling. No guarantee of HIPAA compliance is made.
 
----
+## References and license
 
-## Input Data Schema
-
-### CSV Format for Batch Processing
-
-| Field | Description | Requirement |
-|:------|:------------|:------------|
-| `Patient_ID` | Patient identifier | Required |
-| `v1` | Primary parameter (e.g., heart rate) | Required |
-| `v2` | Secondary parameter (e.g., blood pressure) | Required |
-| `v3` | Tertiary parameter (e.g., temperature) | Required |
-
-See `sample.csv` for example data.
-
----
-
-## Security
-
-### Required Configuration
-
-The `AUDIT_SECRET_KEY` environment variable **must** be set. Generate a secure key:
-
-```bash
-python -c "import secrets; print(secrets.token_hex(32))"
-```
-
-### Security Features
-
-- **Zero-PHI Outbound Guard**: AST and regex inspection blocking SSNs, MRNs, phone numbers, and patient identifiers
-- **HMAC-SHA256 Audit Trail**: Cryptographically chained, tamper-evident logs
-- **Path Traversal Protection**: Validated CSV input/output paths
-- **Input Sanitization**: Type validation and bounds checking on all inputs
-
----
-
-## Testing
-
-```bash
-# Set test environment variable
-export AUDIT_SECRET_KEY="test-secret-key-for-testing-1234567890"
-
-# Run full test suite
-pytest -v
-
-# Run specific test modules
-pytest tests/test_security_and_validation.py -v
-pytest tests/test_enrichment.py -v
-pytest tests/test_oasis_icu_severity_score.py -v
-
-# Run simulation benchmark
-python simulator.py --tasks 1000
-```
-
----
-
-## Project Structure
-
-```
-oasis-icu-severity-score/
-├── agents/                    # Multi-agent supervisor framework
-│   ├── api.py                 # FastAPI REST endpoints
-│   ├── base.py                # Security, PHI guard, HMAC audit trail
-│   ├── learning.py            # Bayesian calibration engine
-│   ├── llm_factory.py         # LLM provider abstraction
-│   ├── metrics.py             # Prometheus metrics collector
-│   ├── models.py              # Pydantic data models
-│   ├── streamer.py            # WebSocket telemetry broadcaster
-│   ├── supervisor.py          # Master orchestrator
-│   └── workers.py             # Specialized domain workers
-├── tests/                     # Test suite
-│   ├── test_enrichment.py     # Enrichment engine tests
-│   ├── test_oasis_icu_severity_score.py  # Core functionality tests
-│   └── test_security_and_validation.py   # Security & validation tests
-├── web/                       # Static web assets
-├── cli.py                     # Command-line interface
-├── oasis_score.py             # Core OASIS calculation
-├── enrichment.py              # Enrichment feature engines
-├── simulator.py               # High-throughput simulation
-├── openapi_spec.json          # OpenAPI 3.1 specification
-├── requirements.txt           # Python dependencies
-├── Dockerfile                 # Container build
-├── docker-compose.yml         # Container orchestration
-└── sample.csv                 # Example input data
-```
-
----
-
-## License
-
-MIT License - See [LICENSE](LICENSE) for details.
+- Johnson AEW, Kramer AA, Clifford GD. *A new severity of illness scale using a subset of acute physiology and chronic health evaluation data elements shows comparable predictive accuracy*. Critical Care Medicine. 2013;41(7):1711–1718.
+- [MIT-LCP OASIS SQL implementation](https://github.com/MIT-LCP/mimic-code/blob/main/mimic-iv/concepts_postgres/score/oasis.sql)
+- [MIT License](LICENSE)
