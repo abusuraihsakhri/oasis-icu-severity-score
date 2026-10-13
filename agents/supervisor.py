@@ -84,5 +84,5 @@ class SystemSupervisor:
 
     def query_supervisory_chat(self, query: str) -> str:
         PHIGuard.assert_no_phi(query)
-        prompt = f"Supervisor inquiry for Oasis Icu Severity Score under CAP / CLSI / ISO Standards: {query}"
+        prompt = f"Supervisor inquiry for Oasis Icu Severity Score (demonstration, no validated clinical inference): {query}"
         return self.llm.invoke(prompt)
