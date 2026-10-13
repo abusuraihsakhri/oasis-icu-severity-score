@@ -84,7 +84,7 @@ class TestCalculateMetrics:
             respiratory_rate_max=50, temperature_min=32,
             temperature_max=41, urine_output_ml=100,
             mechanically_ventilated=True, elective_surgery=False))
-        assert result["score"] == 71  # 5+9+10+6+4+10+6+10+9+6
+        assert result["score"] == 75  # 5+9+10+6+4+10+6+10+9+6
 
     @pytest.mark.parametrize("changes", [
         {"age": None}, {"heart_rate_max": float("nan")},
