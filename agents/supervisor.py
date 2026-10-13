@@ -3,11 +3,14 @@ Supervisor Orchestrator & Operations Intelligence for Oasis Icu Severity Score.
 Domain: Clinical & Biomedical AI
 """
 import uuid
+import json
+import time
 from typing import Dict, Any, List, Optional
 from .base import AuditLogger, ActionExecutor, PHIGuard
 from .models import SystemTaskPayload, AgentAlert, ConsensusDossier, UrgencyLevel, SystemIntegrityStatus
 from .workers import InvariantQCWorker, SafetyEscalationWorker, ProtocolConformanceWorker
 from .llm_factory import LLMFactory
+from .metrics import GLOBAL_METRICS
 
 
 class SystemSupervisor:
@@ -21,6 +24,9 @@ class SystemSupervisor:
         self.dossier_registry: Dict[str, ConsensusDossier] = {}
 
     def process_task(self, payload: SystemTaskPayload, actor: str = "SystemSupervisor") -> ConsensusDossier:
+        started = time.monotonic()
+        # Heuristic screening, not full PHI de-identification.
+        PHIGuard.assert_no_phi(json.dumps(payload.model_dump(), default=str))
         # Zero-PHI outbound validation
         PHIGuard.assert_no_phi(payload.task_id)
         PHIGuard.assert_no_phi(payload.target_identifier)
@@ -71,6 +77,9 @@ class SystemSupervisor:
         )
 
         self.dossier_registry[dossier.dossier_id] = dossier
+        if len(self.dossier_registry) > 1000:
+            self.dossier_registry.pop(next(iter(self.dossier_registry)))
+        GLOBAL_METRICS.record_task(overall_urgency.value, time.monotonic() - started)
         return dossier
 
     def query_supervisory_chat(self, query: str) -> str:
