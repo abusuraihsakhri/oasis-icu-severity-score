@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Oasis Icu Severity Score API",
-    "description": "Enterprise Distributed Component Platform (Clinical & Cryptographic AI) adhering to CAP / CLSI / NIST Standards.",
-    "version": "3.0.0-ENTERPRISE",
+    "description": "Demonstration supervisor API; separate from OASIS clinical score. Not validated or certified for clinical decision support.",
+    "version": "3.0.0-demo",
     "contact": {
       "name": "Dr. Abu Suraih Sakhri",
       "url": "https://github.com/abusuraihsakhri"
@@ -22,17 +22,24 @@
     },
     "/metrics": {
       "get": {
-        "summary": "Prometheus operational metrics",
+        "summary": "Prometheus plaintext operational metrics",
         "responses": {
           "200": {
-            "description": "Prometheus text metrics"
+            "description": "Prometheus text metrics",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }
     },
     "/api/audit": {
       "post": {
-        "summary": "Dispatch task payload across specialized workers",
+        "summary": "Evaluate non-clinical demonstration threshold rules",
         "requestBody": {
           "content": {
             "application/json": {
@@ -76,7 +83,7 @@
     },
     "/api/chat": {
       "post": {
-        "summary": "Air-gapped supervisory conversational assistant",
+        "summary": "Return a deterministic demonstration response",
         "requestBody": {
           "content": {
             "application/json": {
@@ -103,7 +110,7 @@
     },
     "/api/audit/logs": {
       "get": {
-        "summary": "Retrieve and cryptographically verify HMAC audit trail",
+        "summary": "Read in-memory HMAC-chained audit metadata (demo only)",
         "responses": {
           "200": {
             "description": "Cryptographic audit trail"
