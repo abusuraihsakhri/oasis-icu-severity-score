@@ -2,9 +2,13 @@ name: Test Python and browser score engines
 
 on:
   push:
-    branches: [master, audit/280-oasis-accuracy-and-pages]
+    branches: [master]
   pull_request:
     branches: [master]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
