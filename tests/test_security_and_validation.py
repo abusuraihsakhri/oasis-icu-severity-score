@@ -59,31 +59,61 @@ class TestCsvPathValidation:
 
 
 class TestCalculateMetrics:
-    """Tests for core OASIS score calculation."""
+    @staticmethod
+    def normal(**overrides):
+        values = dict(age=40, pre_icu_los_hours=8, gcs_min=15,
+                      heart_rate_min=70, heart_rate_max=88,
+                      map_min=80, map_max=90, respiratory_rate_min=16,
+                      respiratory_rate_max=20, temperature_min=36.4,
+                      temperature_max=36.8, urine_output_ml=3000,
+                      mechanically_ventilated=False, elective_surgery=True)
+        values.update(overrides)
+        return values
 
-    def test_basic_calculation(self):
-        res = calculate_metrics(v1=10.0, v2=5.0, v3=2.0)
-        assert res["score"] == 13.17  # 10 + 5/2 + 2/3 ≈ 13.17 rounded
-        assert res["classification"] in ["Low / Standard", "Moderate / Intermediate", "High / Severe"]
+    def test_published_component_scores(self):
+        result = calculate_metrics(**self.normal())
+        assert result["component_scores"]["age"] == 3
+        assert result["component_scores"]["pre_icu_los"] == 0
+        assert result["score"] == 3
 
-    def test_empty_input(self):
-        res = calculate_metrics()
-        assert res["score"] > 0
-        assert res["inputs_evaluated"] == 0
+    def test_high_abnormal_case(self):
+        result = calculate_metrics(**self.normal(
+            age=80, pre_icu_los_hours=0, gcs_min=3,
+            heart_rate_min=20, heart_rate_max=140,
+            map_min=10, map_max=160, respiratory_rate_min=2,
+            respiratory_rate_max=50, temperature_min=32,
+            temperature_max=41, urine_output_ml=100,
+            mechanically_ventilated=True, elective_surgery=False))
+        assert result["score"] == 75  # 5+9+10+6+4+10+6+10+9+6
 
-    def test_string_input_ignored(self):
-        res = calculate_metrics(v1=10.0, name="patient-name")
-        assert res["inputs_evaluated"] == 2
+    @pytest.mark.parametrize("changes", [
+        {"age": None}, {"heart_rate_max": float("nan")},
+        {"map_min": float("inf")}, {"gcs_min": 2},
+        {"gcs_min": 14.5}, {"temperature_min": 38, "temperature_max": 37},
+        {"mechanically_ventilated": "maybe"},
+    ])
+    def test_invalid_inputs_rejected(self, changes):
+        with pytest.raises(ValueError):
+            calculate_metrics(**self.normal(**changes))
 
-    def test_classification_thresholds(self):
-        low = calculate_metrics(v1=5.0)
-        assert low["classification"] == "Low / Standard"
+    def test_unknown_and_missing_inputs_rejected(self):
+        with pytest.raises(ValueError, match="Unknown"):
+            calculate_metrics(**self.normal(v1=99))
+        with pytest.raises(ValueError):
+            calculate_metrics()
 
-        moderate = calculate_metrics(v1=15.0)
-        assert moderate["classification"] == "Moderate / Intermediate"
+    def test_hmac_detects_modified_record(self):
+        trail = AuditTrail(secret_key="k" * 32)
+        trail.log("test", "test", "create", {"status": "OK"})
+        assert trail.verify_integrity()
+        trail.logs[0]["actor"] = "intruder"
+        assert not trail.verify_integrity()
 
-        high = calculate_metrics(v1=30.0)
-        assert high["classification"] == "High / Severe"
+    def test_audit_get_trail_is_defensive_copy(self):
+        trail = AuditTrail(secret_key="k" * 32)
+        trail.log("test", "test", "create", {"status": "OK"})
+        trail.get_trail()[0]["event_type"] = "changed"
+        assert trail.verify_integrity()
 
 
 class TestEnrichmentEngineValidation:

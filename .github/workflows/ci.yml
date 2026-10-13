@@ -1,40 +1,56 @@
-name: Oasis Icu Severity Score CI/CD & Security Verification
+name: Test Python and browser score engines
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [master]
   pull_request:
-    branches: [ master, main ]
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  test-and-audit:
+  python:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
-
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Validate Python syntax
+        run: python -m compileall -q oasis_score.py agents tests cli.py enrichment.py
+      - name: Test OASIS scoring, CLI and supervisor
+        env:
+          AUDIT_SECRET_KEY: "${{ secrets.AUDIT_SECRET_KEY || 'ci-temporary-nonproduction-key-for-tests' }}"
+        run: python -m pytest -q
+      - name: Single-case CLI smoke test
+        run: |
+          python oasis_score.py single --age 40 --pre-icu-los-hours 8 --gcs-min 15 \
+            --heart-rate-min 70 --heart-rate-max 88 --map-min 80 --map-max 90 \
+            --respiratory-rate-min 16 --respiratory-rate-max 20 \
+            --temperature-min 36.4 --temperature-max 36.8 --urine-output-ml 3000 \
+            --mechanically-ventilated no --elective-surgery yes
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install fastapi uvicorn pydantic pytest
-
-    - name: Run Pytest Suite
-      run: |
-        pytest -v
-
-    - name: Security SAST & Zero-PHI Audit
-      run: |
-        python -c "
-        from agents.base import PHIGuard, AuditLogger
-        import pytest
-        assert AuditLogger.verify_integrity() is True
-        print('Security & Zero-PHI Audit Passed!')
-        "
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate browser JavaScript syntax
+        run: |
+          node --check web/oasis.js
+          node --check web/app.js
+      - name: Test browser scoring engine and CSV input
+        run: node --test web/oasis.test.cjs
